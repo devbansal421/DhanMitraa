@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&display=swap');
+
+/*
+ * Theme tokens. Every colour in tailwind.config.js resolves to one of these
+ * custom properties, stored as "R G B" channels so opacity modifiers keep
+ * working. `:root` is the light theme; `:root.dark` (class set on <html>)
+ * is the dark theme. Nothing else in the app needs to know which is active.
+ */
+:root {
+  color-scheme: light;
+
+  --ink-base: 247 246 241;
+  --ink-surface: 255 255 255;
+  --ink-elevated: 241 242 236;
+  --ink-hover: 232 236 227;
+
+  --line: 221 220 211;
+  --line-strong: 201 200 189;
+  --line-accent: 168 181 168;
+
+  --paper: 23 63 53;
+  --paper-dim: 82 100 92;
+  --paper-muted: 118 131 124;
+  --paper-faint: 154 163 157;
+
+  --gold-50: 251 245 231;
+  --gold-100: 241 226 186;
+  --gold-200: 200 146 50;
+  --gold-300: 169 119 36;
+  --gold-400: 139 97 28;
+  --gold-500: 104 72 23;
+
+  --sage-50: 239 243 236;
+  --sage-100: 220 231 217;
+  --sage-200: 154 173 154;
+  --sage-300: 113 136 115;
+  --sage-400: 81 106 86;
+  --sage-500: 52 86 70;
+
+  --terra-400: 183 94 77;
+  --terra-500: 152 70 56;
+  --terra-600: 120 54 44;
+
+  --ok-400: 77 121 88;
+  --ok-500: 49 95 64;
+
+  --btn-primary-bg: 23 63 53;
+  --btn-primary-bg-hover: 52 86 70;
+  --btn-primary-fg: 255 255 255;
+  --shadow-color: 23 63 53;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.05);
+  --shadow-2: 0 8px 24px rgb(var(--shadow-color) / 0.12);
+  --shadow-3: 0 16px 48px rgb(var(--shadow-color) / 0.22);
+  --scrim-color: 23 63 53;
+  --scrim-opacity: 0.2;
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --ink-base: 20 22 19;
+  --ink-surface: 28 31 26;
+  --ink-elevated: 35 38 31;
+  --ink-hover: 44 48 38;
+
+  --line: 52 56 48;
+  --line-strong: 71 76 64;
+  --line-accent: 93 110 87;
+
+  --paper: 233 235 225;
+  --paper-dim: 180 187 172;
+  --paper-muted: 138 147 132;
+  --paper-faint: 118 126 108;
+
+  --gold-50: 44 36 16;
+  --gold-100: 68 55 22;
+  --gold-200: 231 180 92;
+  --gold-300: 211 160 68;
+  --gold-400: 188 140 54;
+  --gold-500: 169 125 46;
+
+  --sage-50: 30 39 31;
+  --sage-100: 40 51 42;
+  --sage-200: 63 82 67;
+  --sage-300: 95 122 100;
+  --sage-400: 132 163 137;
+  --sage-500: 166 193 171;
+
+  --terra-400: 213 131 111;
+  --terra-500: 198 99 78;
+  --terra-600: 174 83 64;
+
+  --ok-400: 111 169 124;
+  --ok-500: 143 197 155;
+
+  --btn-primary-bg: 231 180 92;
+  --btn-primary-bg-hover: 240 198 120;
+  --btn-primary-fg: 20 22 19;
+  --shadow-color: 0 0 0;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.4);
+  --shadow-2: 0 8px 24px rgb(var(--shadow-color) / 0.5);
+  --shadow-3: 0 16px 48px rgb(var(--shadow-color) / 0.6);
+  --scrim-color: 0 0 0;
+  --scrim-opacity: 0.6;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-ink-base text-paper font-sans;
+    background-image: linear-gradient(180deg, rgb(var(--ink-base)) 0%, rgb(var(--ink-elevated)) 100%);
+    min-width: 320px;
+  }
+  button, a, input, select, textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    @apply outline-none ring-2 ring-sage-400 ring-offset-2 ring-offset-ink-base;
+  }
+  ::selection {
+    @apply bg-sage-100 text-paper;
+  }
+}
+
+@layer components {
+  .surface {
+    @apply bg-ink-surface border border-line;
+    box-shadow: var(--shadow-1);
+  }
+  .surface-hover {
+    @apply surface transition-all duration-200 hover:border-sage-200;
+  }
+  .surface-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-2);
+  }
+  .elevated {
+    @apply bg-ink-surface border border-line;
+    box-shadow: var(--shadow-2);
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium
+           transition-colors duration-200 cursor-pointer select-none focus:outline-none focus-visible:ring-2
+           focus-visible:ring-sage-300 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-base disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-gold {
+    @apply btn;
+    background-color: rgb(var(--btn-primary-bg));
+    color: rgb(var(--btn-primary-fg));
+  }
+  .btn-gold:hover, .btn-gold:active {
+    background-color: rgb(var(--btn-primary-bg-hover));
+  }
+  .btn-sage {
+    @apply btn bg-sage-400 text-white hover:bg-sage-500 active:bg-paper;
+  }
+  .btn-ghost {
+    @apply btn bg-ink-surface text-paper border border-line hover:border-sage-300 hover:bg-sage-50;
+  }
+  .btn-outline {
+    @apply btn bg-transparent text-paper border border-sage-300 hover:bg-sage-50 hover:border-sage-400;
+  }
+  .input {
+    @apply w-full rounded-md border border-line bg-ink-surface px-3.5 py-2.5 text-sm text-paper placeholder:text-paper-faint
+           outline-none transition-colors focus:border-sage-400 focus:ring-2 focus:ring-sage-100;
+  }
+  .modal {
+    @apply bg-ink-surface border border-line rounded-lg;
+    box-shadow: var(--shadow-3);
+  }
+  .scrim {
+    background-color: rgb(var(--scrim-color) / var(--scrim-opacity));
+  }
+  .eyebrow {
+    @apply text-[10px] font-medium uppercase tracking-[0.14em] text-paper-muted;
+  }
+  .section-num {
+    @apply text-[10px] font-medium text-sage-400 tracking-[0.12em] uppercase;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--paper-faint)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 5px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgb(var(--paper-faint)); border-radius: 4px; }
+  .font-display { font-family: 'Inter', system-ui, sans-serif; }
+  .text-balance { text-wrap: balance; }
+}
+
+/* Larger-text accessibility mode — a coarse but reliable magnifier that works
+   even though the app uses many pixel-sized utilities. */
+:root.text-large body {
+  zoom: 1.15;
+}
+
+/* Simple mode — strip animations and expensive effects for slow phones. */
+:root.simple *,
+:root.simple *::before,
+:root.simple *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+:root.simple .surface-hover:hover {
+  transform: none;
+}
+:root.simple [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+:root.simple [class*="blur-"] {
+  filter: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

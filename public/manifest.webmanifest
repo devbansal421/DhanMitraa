@@ -1,0 +1,15 @@
+{
+  "name": "DhanMitraa — Payments for farmers",
+  "short_name": "DhanMitraa",
+  "description": "Send, receive and settle crop payments. Works offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#161814",
+  "theme_color": "#173F35",
+  "icons": [
+    { "src": "/vite.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/vite.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

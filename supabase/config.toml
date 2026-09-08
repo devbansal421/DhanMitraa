@@ -1,0 +1,26 @@
+project_id = "wjgwpplsdrecnbeskcvx"
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173"]
+enable_signup = true
+enable_anonymous_sign_ins = true
+
+[functions.simulate-settlement]
+verify_jwt = true
+
+[functions.assistant]
+verify_jwt = true
+
+[functions.wallet-transfer]
+verify_jwt = true
+
+[functions.payments-create-order]
+verify_jwt = true
+
+[functions.payments-verify]
+verify_jwt = true
+
+# Razorpay calls this one — authenticated by webhook signature, not a Supabase JWT.
+[functions.payments-webhook]
+verify_jwt = false

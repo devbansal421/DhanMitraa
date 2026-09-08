@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="apple-touch-icon" href="/vite.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#173F35" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161814" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>DhanMitraa — Payments for farmers</title>
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Apply the saved (or system) theme and language before first paint so the
+      // page never flashes the wrong colours. The in-app menu writes these keys.
+      (function () {
+        try {
+          var saved = localStorage.getItem('dhanmitraa:theme');
+          var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', dark);
+          var lang = localStorage.getItem('dhanmitraa:lang');
+          if (lang) document.documentElement.lang = lang;
+          var prefs = JSON.parse(localStorage.getItem('dhanmitraa:preferences:v2') || '{}');
+          document.documentElement.classList.toggle('text-large', prefs.largeText === true);
+          document.documentElement.classList.toggle('simple', prefs.simpleMode === true);
+        } catch (e) { /* storage blocked — use defaults */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
