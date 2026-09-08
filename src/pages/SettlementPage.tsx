@@ -38,8 +38,10 @@ export function SettlementPage() {
   const { toast } = useStore();
   const { state, retry } = useRemoteQuery(listSettlements, []);
   const [processing, setProcessing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   if (state.status !== 'ready') return <div className="max-w-4xl mx-auto"><RemoteState state={state} onRetry={retry} emptyTitle="No settlement records yet" emptyDescription="Settlement records appear after a contract reaches settlement pending. Payments are not executed in DhanMitraa yet.">{() => null}</RemoteState></div>;
-  const settlement = state.data[0];
+  const records = state.data;
+  const settlement = records.find((item) => item.id === selectedId) ?? records[0];
   if (!settlement) return <div className="max-w-4xl mx-auto"><RemoteState state={state} onRetry={retry} emptyTitle="No settlement records yet" emptyDescription="Settlement records appear after a contract reaches settlement pending. Payments are not executed in DhanMitraa yet.">{() => null}</RemoteState></div>;
 
   const parties = settlement.allocations.map((allocation) => ({
@@ -89,8 +91,35 @@ export function SettlementPage() {
         <p className="text-sm text-paper-muted mt-1">
           Contract <span className="font-mono text-gold-200">#{settlement.contractReference}</span> · Multi-party distribution
         </p>
-        <p className="mt-3 inline-flex rounded border border-gold-300/30 bg-gold-50 px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider text-gold-200">Simulation only — no money will move</p>
+        <p className="mt-3 inline-flex rounded border border-sage-300/40 bg-sage-50 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-sage-600">Server-authorised · multi-party distribution</p>
       </div>
+
+      {/* All settlement records */}
+      {records.length > 1 && (
+        <Card className="p-5 sm:p-6 mb-4 animate-fade-in-up">
+          <div className="eyebrow mb-3">Settlement records · {records.length}</div>
+          <div className="max-h-72 overflow-y-auto scrollbar-thin divide-y divide-line">
+            {records.map((record) => {
+              const active = record.id === settlement.id;
+              return (
+                <button
+                  key={record.id}
+                  type="button"
+                  onClick={() => setSelectedId(record.id)}
+                  className={`flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors ${active ? 'text-paper' : 'text-paper-muted hover:text-paper'}`}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${record.status === 'completed' ? 'bg-ok-400' : active ? 'bg-gold-200' : 'bg-line-strong'}`} />
+                    <span className="font-mono text-xs">#{record.contractReference}</span>
+                    <span className="truncate text-[11px] text-paper-faint">{record.status.replace(/_/g, ' ')}</span>
+                  </div>
+                  <span className="shrink-0 font-mono text-xs">{formatINR(record.grossAmount)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Buyer commitment */}
       <Card className="p-5 sm:p-7 mb-4 animate-fade-in-up overflow-x-auto scrollbar-thin">

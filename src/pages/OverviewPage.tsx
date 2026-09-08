@@ -13,7 +13,8 @@ export function OverviewPage() {
   const navigate = useNavigate();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const crop = crops[0];
+  // Lead with a crop that is still in progress; fall back to the first record.
+  const crop = crops.find((item) => item.stage !== 'settlement') ?? crops[0];
   if (!crop) return (
     <div className="max-w-5xl mx-auto">
       <PageHeader title={`${greeting}, ${displayName.split(' ')[0]}`} subtitle="A clear view of what your current harvest is expected to return." sectionNum="01 / Farm position" />
