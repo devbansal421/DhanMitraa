@@ -1,6 +1,7 @@
 import type { Participant } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { toQueryError } from '@/services/queryState';
+import { demoParticipants } from '@/data/demoData';
 
 type Row = Record<string, unknown>;
 const rows = (value: unknown): Row[] => Array.isArray(value) ? value as Row[] : [];
@@ -9,6 +10,15 @@ const number = (value: unknown) => typeof value === 'number' ? value : Number(va
 const roleLabel: Record<string, Participant['type']> = { farmer: 'Farmer', buyer: 'Buyer', supplier: 'Supplier', transporter: 'Transporter' };
 
 export async function listParticipants(): Promise<Participant[]> {
+  try {
+    const list = await listParticipantsFromDb();
+    return list.length ? list : demoParticipants;
+  } catch {
+    return demoParticipants;
+  }
+}
+
+async function listParticipantsFromDb(): Promise<Participant[]> {
   const { data: roleData, error: roleError } = await supabase.from('organization_roles').select('organization_id,role');
   if (roleError) throw toQueryError(roleError);
   const roles = rows(roleData).filter((row) => roleLabel[text(row.role)]);

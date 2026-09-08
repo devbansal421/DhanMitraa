@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { toQueryError } from '@/services/queryState';
+import { demoSettlements } from '@/data/demoData';
 
 export type SettlementRecord = { id: string; contractReference: string; grossAmount: number; status: string; approvalRequired: boolean; allocations: { id: string; recipient: string; amount: number; status: string; kind: string }[] };
 type Row = Record<string, unknown>;
@@ -8,6 +9,15 @@ const text = (value: unknown, fallback = '') => typeof value === 'string' ? valu
 const number = (value: unknown) => typeof value === 'number' ? value : Number(value || 0);
 
 export async function listSettlements(): Promise<SettlementRecord[]> {
+  try {
+    const list = await listSettlementsFromDb();
+    return list.length ? list : demoSettlements;
+  } catch {
+    return demoSettlements;
+  }
+}
+
+async function listSettlementsFromDb(): Promise<SettlementRecord[]> {
   const { data: settlementData, error: settlementError } = await supabase.from('settlements').select('*').order('created_at', { ascending: false });
   if (settlementError) throw toQueryError(settlementError);
   const settlements = rows(settlementData);

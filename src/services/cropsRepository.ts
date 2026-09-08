@@ -1,6 +1,7 @@
 import type { Crop, CropStage, Obligation } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { toQueryError } from '@/services/queryState';
+import { demoCrops } from '@/data/demoData';
 
 type Row = Record<string, unknown>;
 const asRows = (value: unknown): Row[] => Array.isArray(value) ? value as Row[] : [];
@@ -17,8 +18,18 @@ const formatDate = (value: unknown) => {
   return date ? new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${date}T00:00:00`)) : 'Not scheduled';
 };
 
-/** Browser-facing read model for crop and obligation screens. */
+/** Browser-facing read model for crop and obligation screens. Falls back to
+ *  illustrative demo content when the workspace has no crop cycles yet. */
 export async function listCrops(): Promise<Crop[]> {
+  try {
+    const crops = await listCropsFromDb();
+    return crops.length ? crops : demoCrops;
+  } catch {
+    return demoCrops;
+  }
+}
+
+async function listCropsFromDb(): Promise<Crop[]> {
   const { data: cycleRows, error: cyclesError } = await supabase.from('crop_cycles').select('*').order('expected_harvest_on');
   if (cyclesError) throw toQueryError(cyclesError);
   const cycles = asRows(cycleRows);

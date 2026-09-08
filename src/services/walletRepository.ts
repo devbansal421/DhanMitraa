@@ -1,6 +1,7 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { TxKind, WalletTx } from '@/lib/payments';
+import { demoWallet } from '@/data/demoData';
 
 /**
  * Reads and writes for the closed-loop wallet.
@@ -48,8 +49,17 @@ export interface WalletSnapshot {
 
 export class WalletUnavailableError extends Error {}
 
-/** Loads the signed-in user's wallet account + recent ledger. */
+/** Loads the signed-in user's wallet account + recent ledger. Falls back to an
+ *  illustrative demo ledger when no wallet is provisioned yet. */
 export async function loadWallet(): Promise<WalletSnapshot> {
+  try {
+    return await loadWalletFromDb();
+  } catch {
+    return { accountId: 'demo', balance: demoWallet.balance, transactions: demoWallet.transactions };
+  }
+}
+
+async function loadWalletFromDb(): Promise<WalletSnapshot> {
   const account = await supabase
     .from('wallet_accounts')
     .select('id,balance_paise')
