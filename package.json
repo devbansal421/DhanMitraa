@@ -2,6 +2,8 @@
   "name": "dhanmitraa",
   "private": true,
   "version": "0.0.0",
+  "description": "Trustworthy, multilingual, offline-first digital payments for farmers and the rural economy.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
