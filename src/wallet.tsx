@@ -1,38 +1,41 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '@/store';
 import type { Obligation } from '@/types';
 import {
-  balanceOf,
   makeReference,
   movementTotals,
-  newTxId,
+  newUuid,
   rupeesToWords,
-  sampleTransactions,
   sentenceCase,
   validateAmount,
-  SAMPLE_OPENING_BALANCE,
   type DomainResult,
-  type WalletMeta,
+  type OutboxTransfer,
   type WalletTx,
 } from '@/lib/payments';
 import {
-  loadWalletMeta,
-  loadWalletTransactions,
-  saveWalletMeta,
-  saveWalletTransactions,
+  loadWalletCache,
+  loadWalletOutbox,
+  saveWalletCache,
+  saveWalletOutbox,
 } from '@/lib/persistence';
-import { isServerWallet, loadServerWallet, serverDebit, type ServerTransferKind } from '@/services/walletRepository';
+import { loadWallet, transfer, WalletUnavailableError } from '@/services/walletRepository';
 
-interface SendInput { to: string; amount: number | string; note?: string }
-interface RequestInput { from: string; amount: number | string; note?: string }
+interface SendInput {
+  recipientOrgId?: string;
+  recipientUserId?: string;
+  label: string;
+  amount: number | string;
+  note?: string;
+}
 
 interface Wallet {
   ready: boolean;
   online: boolean;
-  /** true once the Phase-2 server wallet has loaded successfully. */
-  serverActive: boolean;
+  /** True once a wallet has been provisioned and loaded for this account. */
+  available: boolean;
+  /** Non-fatal load/sync problem to surface, or null. */
+  error: string | null;
   balance: number;
-  openingBalance: number;
   transactions: WalletTx[];
   moneyIn: number;
   moneyOut: number;
@@ -41,88 +44,117 @@ interface Wallet {
   recentPayees: string[];
   spentToday: number;
   amountInWords: (amount: number) => string;
-  addMoney: (amount: number | string, source?: string) => DomainResult<WalletTx>;
-  sendMoney: (input: SendInput) => DomainResult<WalletTx>;
-  requestMoney: (input: RequestInput) => DomainResult<WalletTx>;
-  payObligation: (obligation: Obligation, cropName?: string) => DomainResult<WalletTx>;
-  markRequestReceived: (id: string) => void;
-  resetWallet: () => void;
-  /** Re-pull the server wallet (after a gateway top-up, or on reconnect). */
-  refreshServer: () => void;
+  sendMoney: (input: SendInput) => Promise<DomainResult<WalletTx>>;
+  payObligation: (obligation: Obligation, cropName?: string) => Promise<DomainResult<WalletTx>>;
+  refresh: () => void;
 }
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SERVER_KINDS: Record<WalletTx['kind'], ServerTransferKind | null> = {
-  send: 'send', obligation: 'obligation', topup: null, receive: null, request: null,
-};
 
 const WalletContext = createContext<Wallet | null>(null);
 
-const EMPTY_META: WalletMeta = { openingBalance: SAMPLE_OPENING_BALANCE, seeded: false };
+/** An offline-captured transfer, shown in the ledger as a queued outgoing row. */
+function outboxToTx(item: OutboxTransfer): WalletTx {
+  return {
+    id: item.idempotencyKey,
+    direction: 'out',
+    kind: item.kind,
+    amount: item.amountRupees,
+    counterparty: item.counterpartyLabel,
+    note: item.note,
+    obligationId: item.obligationId,
+    reference: makeReference(new Date(item.createdAt)),
+    createdAt: item.createdAt,
+    status: 'queued',
+  };
+}
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const { toast } = useStore();
-  const [transactions, setTransactions] = useState<WalletTx[]>([]);
-  const [meta, setMeta] = useState<WalletMeta>(EMPTY_META);
-  const [ready, setReady] = useState(false);
-  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
-  const [serverActive, setServerActive] = useState(false);
   const [serverBalance, setServerBalance] = useState(0);
+  const [serverTx, setServerTx] = useState<WalletTx[]>([]);
+  const [outbox, setOutbox] = useState<OutboxTransfer[]>([]);
+  const [ready, setReady] = useState(false);
+  const [available, setAvailable] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
+  const syncing = useRef(false);
 
-  // Load persisted ledger once, seeding a sample history on first ever open so
-  // the screen is not empty during a demo.
+  // Hydrate from the last-known snapshot + outbox so the screen is usable
+  // instantly and offline.
   useEffect(() => {
-    const storedMeta = loadWalletMeta(EMPTY_META);
-    if (storedMeta.seeded) {
-      setMeta(storedMeta);
-      setTransactions(loadWalletTransactions([]));
-    } else {
-      const seeded = sampleTransactions();
-      const nextMeta: WalletMeta = { openingBalance: SAMPLE_OPENING_BALANCE, seeded: true };
-      setMeta(nextMeta);
-      setTransactions(seeded);
-      saveWalletMeta(nextMeta);
-      saveWalletTransactions(seeded);
+    const cache = loadWalletCache();
+    if (cache) {
+      setServerBalance(cache.balance);
+      setServerTx(cache.transactions);
     }
+    setOutbox(loadWalletOutbox());
     setReady(true);
   }, []);
 
-  useEffect(() => {
-    if (ready) saveWalletTransactions(transactions);
-  }, [ready, transactions]);
-
-  useEffect(() => {
-    if (ready) saveWalletMeta(meta);
-  }, [ready, meta]);
-
-  // Phase 2: if the server wallet is enabled and reachable, it becomes the
-  // source of truth. Any failure (flag off, migration not applied, offline,
-  // guest) silently leaves the localStorage simulation in charge.
-  const refreshServer = useCallback(() => {
-    if (!isServerWallet()) return;
-    void loadServerWallet()
-      .then((snapshot) => {
-        setServerActive(true);
-        setServerBalance(snapshot.balance);
-        setTransactions(snapshot.transactions);
-      })
-      .catch(() => setServerActive(false));
+  const persistOutbox = useCallback((next: OutboxTransfer[]) => {
+    setOutbox(next);
+    saveWalletOutbox(next);
   }, []);
 
-  useEffect(() => { refreshServer(); }, [refreshServer]);
-
-  // When connectivity returns, "sync" anything captured offline.
-  useEffect(() => {
-    const goOnline = () => {
-      setOnline(true);
-      setTransactions((current) => {
-        if (!current.some((tx) => tx.status === 'queued')) return current;
-        const synced = current.map((tx) => (tx.status === 'queued' ? { ...tx, status: 'completed' as const } : tx));
-        toast('Offline payments synced.', 'success');
-        return synced;
+  const refresh = useCallback(() => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    void loadWallet()
+      .then((snapshot) => {
+        setServerBalance(snapshot.balance);
+        setServerTx(snapshot.transactions);
+        setAvailable(true);
+        setError(null);
+        saveWalletCache({ balance: snapshot.balance, transactions: snapshot.transactions });
+      })
+      .catch((err: unknown) => {
+        if (err instanceof WalletUnavailableError) {
+          setAvailable(false);
+          setError(err.message);
+        } else {
+          setError(err instanceof Error ? err.message : 'The wallet could not be refreshed.');
+        }
       });
-      refreshServer();
-    };
+  }, []);
+
+  useEffect(() => { if (ready) refresh(); }, [ready, refresh]);
+
+  // Replay everything captured offline, once, when connectivity returns.
+  const flushOutbox = useCallback(async () => {
+    if (syncing.current) return;
+    const pending = loadWalletOutbox();
+    if (pending.length === 0) return;
+    syncing.current = true;
+    let failures = 0;
+    try {
+      for (const item of pending) {
+        try {
+          await transfer({
+            kind: item.kind,
+            recipientOrgId: item.recipientOrgId,
+            recipientUserId: item.recipientUserId,
+            amountRupees: item.amountRupees,
+            note: item.note,
+            obligationId: item.obligationId,
+            idempotencyKey: item.idempotencyKey,
+          });
+        } catch {
+          failures += 1;
+        }
+        const rest = loadWalletOutbox().filter((row) => row.idempotencyKey !== item.idempotencyKey);
+        saveWalletOutbox(rest);
+        setOutbox(rest);
+      }
+      toast(
+        failures === 0 ? 'Offline payments synced.' : `${failures} offline payment(s) could not be completed.`,
+        failures === 0 ? 'success' : 'warning',
+      );
+    } finally {
+      syncing.current = false;
+      refresh();
+    }
+  }, [toast, refresh]);
+
+  useEffect(() => {
+    const goOnline = () => { setOnline(true); void flushOutbox(); };
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
@@ -130,26 +162,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
-  }, [toast, refreshServer]);
+  }, [flushOutbox]);
 
-  const localBalance = useMemo(() => balanceOf(meta.openingBalance, transactions), [meta.openingBalance, transactions]);
-  const balance = serverActive ? serverBalance : localBalance;
-
-  // In server mode, push each debit to the server and reconcile. On failure the
-  // optimistic local row is rolled back.
-  const mirrorDebit = useCallback((tx: WalletTx) => {
-    const kind = SERVER_KINDS[tx.kind];
-    if (!kind) return;
-    const idempotencyKey = UUID_RE.test(tx.id) ? tx.id : crypto.randomUUID();
-    void serverDebit({ amountRupees: tx.amount, kind, counterparty: tx.counterparty, note: tx.note, idempotencyKey })
-      .then((res) => setServerBalance(res.balance))
-      .catch((error: unknown) => {
-        setTransactions((current) => current.filter((item) => item.id !== tx.id));
-        toast(error instanceof Error ? error.message : 'The payment could not be completed.', 'warning');
-      });
-  }, [toast]);
+  const queuedTx = useMemo(() => outbox.map(outboxToTx), [outbox]);
+  const transactions = useMemo(
+    () => [...queuedTx].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).concat(serverTx),
+    [queuedTx, serverTx],
+  );
+  const queuedOutTotal = useMemo(() => queuedTx.reduce((sum, tx) => sum + tx.amount, 0), [queuedTx]);
+  const balance = Math.max(serverBalance - queuedOutTotal, 0);
   const { moneyIn, moneyOut } = useMemo(() => movementTotals(transactions), [transactions]);
-  const queuedCount = useMemo(() => transactions.filter((tx) => tx.status === 'queued').length, [transactions]);
+  const queuedCount = outbox.length;
+
   const paidObligationIds = useMemo(
     () => new Set(transactions.filter((tx) => tx.kind === 'obligation' && tx.obligationId).map((tx) => tx.obligationId as string)),
     [transactions],
@@ -167,150 +191,89 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     return transactions
-      .filter((tx) => tx.direction === 'out' && tx.status !== 'pending' && new Date(tx.createdAt) >= start)
+      .filter((tx) => tx.direction === 'out' && new Date(tx.createdAt) >= start)
       .reduce((sum, tx) => sum + tx.amount, 0);
   }, [transactions]);
 
-  const record = useCallback((tx: WalletTx) => {
-    setTransactions((current) => [tx, ...current]);
-  }, []);
-
-  const spend = useCallback(
-    (kind: WalletTx['kind'], amountRaw: number | string, counterparty: string, note?: string, obligationId?: string): DomainResult<WalletTx> => {
-      const name = counterparty.trim();
-      if (!name) return { ok: false, message: 'Enter who this payment is for.' };
+  const runTransfer = useCallback(
+    async (
+      kind: 'send' | 'obligation',
+      amountRaw: number | string,
+      recipient: { recipientOrgId?: string; recipientUserId?: string },
+      label: string,
+      note?: string,
+      obligationId?: string,
+    ): Promise<DomainResult<WalletTx>> => {
+      const name = label.trim();
+      if (!name) return { ok: false, message: 'Choose who this payment is for.' };
+      if (!recipient.recipientOrgId && !recipient.recipientUserId) {
+        return { ok: false, message: 'Choose a verified participant to pay.' };
+      }
       const check = validateAmount(amountRaw, { balance });
       if (!check.ok) return check;
-      const tx: WalletTx = {
-        id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : newTxId(),
-        direction: 'out',
-        kind,
-        amount: check.value,
-        counterparty: name,
-        note: note?.trim() || undefined,
-        obligationId,
-        reference: makeReference(),
-        createdAt: new Date().toISOString(),
-        status: online ? 'completed' : 'queued',
-      };
-      record(tx);
-      if (serverActive && online) mirrorDebit(tx);
-      return { ok: true, value: tx };
-    },
-    [balance, online, record, serverActive, mirrorDebit],
-  );
 
-  const addMoney = useCallback<Wallet['addMoney']>(
-    (amountRaw, source) => {
-      const check = validateAmount(amountRaw, { requirePositive: false });
-      if (!check.ok) return check;
-      const tx: WalletTx = {
-        id: newTxId(),
-        direction: 'in',
-        kind: 'topup',
-        amount: check.value,
-        counterparty: source?.trim() || 'Bank / UPI (simulation)',
-        note: 'Added money',
-        reference: makeReference(),
-        createdAt: new Date().toISOString(),
-        status: 'completed',
-      };
-      record(tx);
-      if (serverActive) {
-        // A real top-up is credited server-side by the gateway webhook; show it
-        // immediately, then reconcile.
-        setServerBalance((current) => current + check.value);
-        window.setTimeout(() => refreshServer(), 1500);
+      const idempotencyKey = newUuid();
+      const createdAt = new Date().toISOString();
+
+      if (!online) {
+        const item: OutboxTransfer = {
+          idempotencyKey, kind, ...recipient, counterpartyLabel: name,
+          amountRupees: check.value, note: note?.trim() || undefined, obligationId, createdAt,
+        };
+        persistOutbox([...loadWalletOutbox(), item]);
+        return { ok: true, value: outboxToTx(item) };
       }
-      return { ok: true, value: tx };
+
+      try {
+        const result = await transfer({
+          kind, ...recipient, amountRupees: check.value, note: note?.trim() || undefined, obligationId, idempotencyKey,
+        });
+        setServerBalance(result.balance);
+        refresh();
+        return {
+          ok: true,
+          value: {
+            id: idempotencyKey, direction: 'out', kind, amount: check.value, counterparty: name,
+            note: note?.trim() || undefined, obligationId,
+            reference: result.reference ?? makeReference(), createdAt, status: 'completed',
+          },
+        };
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : 'The payment could not be completed.' };
+      }
     },
-    [record, serverActive, refreshServer],
+    [balance, online, persistOutbox, refresh],
   );
 
   const sendMoney = useCallback<Wallet['sendMoney']>(
-    ({ to, amount, note }) => spend('send', amount, to, note),
-    [spend],
+    ({ recipientOrgId, recipientUserId, label, amount, note }) =>
+      runTransfer('send', amount, { recipientOrgId, recipientUserId }, label, note),
+    [runTransfer],
   );
 
   const payObligation = useCallback<Wallet['payObligation']>(
     (obligation, cropName) => {
       if (paidObligationIds.has(obligation.id)) {
-        return { ok: false, message: 'This obligation is already paid in the wallet.' };
+        return Promise.resolve({ ok: false, message: 'This obligation is already paid.' } as DomainResult<WalletTx>);
+      }
+      if (!obligation.partyOrgId) {
+        return Promise.resolve({ ok: false, message: 'This obligation has no linked participant to pay.' } as DomainResult<WalletTx>);
       }
       const note = cropName ? `${obligation.label} · ${cropName}` : obligation.label;
-      return spend('obligation', obligation.amount, obligation.party, note, obligation.id);
+      return runTransfer('obligation', obligation.amount, { recipientOrgId: obligation.partyOrgId }, obligation.party, note, obligation.id);
     },
-    [paidObligationIds, spend],
+    [paidObligationIds, runTransfer],
   );
-
-  const requestMoney = useCallback<Wallet['requestMoney']>(
-    ({ from, amount, note }) => {
-      const name = from.trim();
-      if (!name) return { ok: false, message: 'Enter who you are requesting from.' };
-      const check = validateAmount(amount, { requirePositive: false });
-      if (!check.ok) return check;
-      const tx: WalletTx = {
-        id: newTxId(),
-        direction: 'in',
-        kind: 'request',
-        amount: check.value,
-        counterparty: name,
-        note: note?.trim() || 'Payment request',
-        reference: makeReference(),
-        createdAt: new Date().toISOString(),
-        status: 'pending',
-      };
-      record(tx);
-      return { ok: true, value: tx };
-    },
-    [record],
-  );
-
-  const markRequestReceived = useCallback((id: string) => {
-    setTransactions((current) =>
-      current.map((tx) => (tx.id === id && tx.kind === 'request' ? { ...tx, status: 'completed' as const } : tx)),
-    );
-  }, []);
-
-  const resetWallet = useCallback(() => {
-    if (serverActive) {
-      toast('The server wallet keeps a permanent ledger and cannot be reset here.', 'info');
-      refreshServer();
-      return;
-    }
-    const seeded = sampleTransactions();
-    const nextMeta: WalletMeta = { openingBalance: SAMPLE_OPENING_BALANCE, seeded: true };
-    setMeta(nextMeta);
-    setTransactions(seeded);
-    toast('Wallet reset to the sample ledger.', 'info');
-  }, [toast, serverActive, refreshServer]);
 
   const amountInWords = useCallback((amount: number) => sentenceCase(rupeesToWords(amount)), []);
 
   const value = useMemo<Wallet>(
     () => ({
-      ready,
-      online,
-      serverActive,
-      balance,
-      openingBalance: meta.openingBalance,
-      transactions,
-      moneyIn,
-      moneyOut,
-      queuedCount,
-      paidObligationIds,
-      recentPayees,
-      spentToday,
-      amountInWords,
-      addMoney,
-      sendMoney,
-      requestMoney,
-      payObligation,
-      markRequestReceived,
-      resetWallet,
-      refreshServer,
+      ready, online, available, error, balance, transactions, moneyIn, moneyOut, queuedCount,
+      paidObligationIds, recentPayees, spentToday, amountInWords, sendMoney, payObligation, refresh,
     }),
-    [ready, online, serverActive, balance, meta.openingBalance, transactions, moneyIn, moneyOut, queuedCount, paidObligationIds, recentPayees, spentToday, amountInWords, addMoney, sendMoney, requestMoney, payObligation, markRequestReceived, resetWallet, refreshServer],
+    [ready, online, available, error, balance, transactions, moneyIn, moneyOut, queuedCount,
+      paidObligationIds, recentPayees, spentToday, amountInWords, sendMoney, payObligation, refresh],
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

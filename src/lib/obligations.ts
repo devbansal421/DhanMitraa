@@ -34,7 +34,7 @@ export function createObligation(crops: Crop[], cropId: string, input: Obligatio
   const crop = crops.find((item) => item.id === cropId);
   if (!crop) return { ok: false, message: 'This crop is no longer available.' };
 
-  const obligation: Obligation = { id: obligationId(), ...result.value };
+  const obligation: Obligation = { id: obligationId(), partyOrgId: '', ...result.value };
   return { ok: true, value: crops.map((item) => item.id === cropId ? { ...item, obligations: [...item.obligations, obligation] } : item) };
 }
 

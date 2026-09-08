@@ -38,7 +38,6 @@ export const bn: Partial<Record<TranslationKey, string>> = {
 
   'wallet.title': 'পেমেন্ট',
   'wallet.availableBalance': 'উপলব্ধ ব্যালেন্স',
-  'wallet.simulationTag': 'সিমুলেশন — আসল টাকা নয়',
   'wallet.sendMoney': 'টাকা পাঠান',
   'wallet.requestMoney': 'টাকা চান',
   'wallet.addMoney': 'টাকা যোগ করুন',

@@ -19,6 +19,8 @@ export interface Obligation {
   id: string;
   label: string;
   party: string;
+  /** Wallet holder this obligation is paid to. Empty if not linked to an org. */
+  partyOrgId: string;
   amount: number;
   status: ObligationStatus;
 }

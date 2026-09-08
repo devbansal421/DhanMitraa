@@ -35,5 +35,13 @@ supabase/.branches
 .vercel
 *.tsbuildinfo
 
+# Python (advisory-engine)
+__pycache__/
+*.py[cod]
+.venv/
+advisory-engine/.venv/
+.pytest_cache/
+.ruff_cache/
+
 # Claude Code / editor tooling — not part of the project
 .claude/

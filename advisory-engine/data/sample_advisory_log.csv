@@ -1,0 +1,6 @@
+Date,Name,Location,LandAcres,SoilPH,RainfallMM,Season,SeedCostRs,LabourCostRs,IrrigationCostRs,TransportCostRs,LandRentRs,OtherCostRs,RecommendedCrop,MatchScore,PredYieldKgPerAcre,PredRevenueRs,FertilizerCostRs,PredTotalCostRs,PredProfitRs
+"2026-08-10","ramesh kumar","sultanpur",3,5.6,1500,"Kharif",0,0,0,0,0,0,"Rice",1.000,1800,118800,19500,19500,99300
+"2026-08-10","sunita devi","baghpat",2,7.6,350,"Rabi",0,0,0,0,0,0,"Chickpea (Gram)",1.000,450,45000,7200,7200,37800
+"2026-08-16","dev bansal","punjab",12,6.5,100,"Zaid",124,134,1700,1200,1500,200,"Moong (Green Gram)",0.800,400,336000,36000,40858,295142
+"2026-08-17","prabhav dube","rawalpindi",0.01,7,120,"Zaid",1,0,1000,0,0,2000,"Moong (Green Gram)",0.820,400,280,30,3031,-2751
+"2026-08-22","dev bansal","punjab",200,5.6,200,"Zaid",400,1000,100,500,0,300,"Moong (Green Gram)",0.847,400,5600000,600000,602300,4997700

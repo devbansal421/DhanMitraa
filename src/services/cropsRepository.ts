@@ -53,7 +53,7 @@ export async function listCrops(): Promise<Crop[]> {
     const cycleObligations: Obligation[] = obligations
       .filter((row) => row.crop_cycle_id === cycle.id && !HIDDEN_OBLIGATION_STATUSES.has(asText(row.status)))
       .map((row) => ({
-        id: asText(row.id), label: asText(row.description, asText(row.obligation_type)), party: names.get(asText(row.payee_org_id)) || 'Unknown participant', amount: asNumber(row.agreed_amount), status: SECURED_OBLIGATION_STATUSES.has(asText(row.status)) ? 'secured' : 'pending',
+        id: asText(row.id), label: asText(row.description, asText(row.obligation_type)), party: names.get(asText(row.payee_org_id)) || 'Unknown participant', partyOrgId: asText(row.payee_org_id), amount: asNumber(row.agreed_amount), status: SECURED_OBLIGATION_STATUSES.has(asText(row.status)) ? 'secured' : 'pending',
       }));
     return {
       id: asText(cycle.id), name: cropNames.get(asText(cycle.crop_id)) || 'Unnamed crop', season: seasonNames.get(asText(cycle.season_id)) || 'Unscheduled season', tonnes: asNumber(cycle.expected_quantity), estimatedValue: asNumber(cycle.estimated_value), maturity: asNumber(cycle.maturity_percent), expectedHarvestDate: formatDate(cycle.expected_harvest_on),

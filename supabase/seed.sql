@@ -128,3 +128,19 @@ insert into public.recommendations (id, subject_org_id, action_text, rank) value
   ('90000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', 'Review transport contract', 2),
   ('90000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000001', 'Maintain ₹15,000 liquidity buffer', 3)
 on conflict (id) do nothing;
+
+-- Closed-loop wallet: opening balances. Every credit is a labelled, auditable
+-- grant — the only way money enters this demo. `wallet_grant` is idempotent on
+-- its key, so re-running the seed does not double-credit.
+select public.wallet_grant(
+  public.wallet_account_for_user('10000000-0000-4000-8000-000000000001'),
+  1800000, 'Advance from Nova Agri Trading — wheat contract A7F92',
+  'c1000000-0000-4000-8000-000000000001');
+select public.wallet_grant(
+  public.wallet_account_for_org('20000000-0000-4000-8000-000000000004'),
+  50000000, 'Buyer operating float (demo seed)',
+  'c1000000-0000-4000-8000-000000000002');
+select public.wallet_grant(
+  public.wallet_account_for_org('20000000-0000-4000-8000-000000000006'),
+  50000000, 'Buyer operating float (demo seed)',
+  'c1000000-0000-4000-8000-000000000003');

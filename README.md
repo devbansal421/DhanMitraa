@@ -7,7 +7,9 @@
 ![Stack](https://img.shields.io/badge/stack-React%20%C2%B7%20TypeScript%20%C2%B7%20Supabase-8b5cf6.svg)
 ![PWA](https://img.shields.io/badge/PWA-offline--first-informational.svg)
 
-Built for **IIC 3.0**. Money features are a **simulation** — no real funds move.
+Built for **IIC 3.0**. Payments run on a **closed-loop ledger** — real money never
+enters or leaves (that needs an RBI PPI licence), but inside the system every
+rupee is a real, double-entry, server-authoritative, tamper-proof record.
 
 ---
 
@@ -23,8 +25,8 @@ Built for **IIC 3.0**. Money features are a **simulation** — no real funds mov
 
 | Module | What it does |
 |---|---|
-| **Wallet & payments** | Send, request, add money, and pay crop obligations. Two-step confirm, receipts, amount-in-words, recent/verified payees, a daily spending limit, and an **offline queue** that syncs on reconnect. |
-| **Crop & settlement view** | Crop cycles, buyer commitments, and a server-authorised, simulation-only settlement engine that snapshots obligations and balances allocations. |
+| **Closed-loop wallet** | A real Postgres double-entry ledger. You can only pay a **verified network participant** (no free-text ghost payees); every transfer is two balancing rows written atomically by an Edge Function; balances can never overdraw; history is immutable and audited. Two-step confirm, receipts, amount-in-words, a daily spending limit, and an **offline outbox** that replays idempotently on reconnect. |
+| **Crop & settlement view** | Crop cycles, buyer commitments, and a server-authorised settlement engine that snapshots obligations and balances allocations. |
 | **Multilingual UI** | English + Hindi fully translated; Marathi, Bengali, Tamil core-covered with English fallback. Switchable and remembered per device. |
 | **AI help assistant ("Sahayak")** | Answers "how do I…" questions in the user's language via a provider-agnostic Edge Function (free Groq path). Voice input and read-aloud. |
 | **Accessibility & trust** | Larger-text mode, simple (low-data) mode, light/dark, "verified in your network" cues, new-payee warnings. |
@@ -43,7 +45,7 @@ Built for **IIC 3.0**. Money features are a **simulation** — no real funds mov
         │                      simulate-settlement · wallet-transfer
         │                      assistant · payments-*  (secrets stay server-side)
         ▼
-  localStorage  ──  wallet ledger + offline outbox (Phase-1 default)
+  localStorage  ──  last-known wallet snapshot + offline transfer outbox
 ```
 
 - **Frontend** holds only public keys (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`).
@@ -133,13 +135,30 @@ supabase functions deploy assistant
 Until deployed and keyed, the panel shows a clear "not set up yet" message and
 the rest of the app is unaffected.
 
-### Wallet
+### Wallet (closed-loop ledger)
 
-The **Payments** screen is a client-side simulation: the ledger lives in
-`localStorage`, no bank or UPI is connected, and no real money moves. Phase 2
-(`supabase/migrations/202609080008_wallet.sql` + `wallet-transfer`) makes it
-server-backed behind `VITE_WALLET_BACKEND=supabase`; any failure falls back to
-the local simulation. `credit_wallets_for_settlement()` is the Phase 3 hook.
+Migration `supabase/migrations/202609090001_wallet_closed_loop.sql` builds a real
+double-entry wallet:
+
+- **One wallet per holder** — a farmer (`profiles`) or an organisation
+  (`organizations`), auto-provisioned by trigger.
+- **`wallet_ledger`** is append-only and immutable. Every transfer is two rows
+  (debit sender, credit recipient) sharing a `transfer_id`, written atomically by
+  `public.wallet_transfer(...)`. A trigger keeps the cached balance in step and
+  raises `P0001` on any overdraft.
+- **Row-level security** lets a holder read only their own account and ledger.
+- **The only write path is the `wallet-transfer` Edge Function.** The browser
+  sends a recipient id, an amount, a kind (`send` | `obligation`) and a UUID
+  idempotency key — never a balance or a status. Unknown payees, overdrafts and
+  replays are all rejected in Postgres.
+- Balances rise only from a transfer in, a `credit_wallets_for_settlement()`
+  payout, or a labelled `wallet_grant()` seed float — there is no "add money
+  from nowhere".
+- The client keeps a last-known snapshot and an **offline outbox** in
+  `localStorage`; queued transfers replay (idempotently) on reconnect.
+
+Deploy: `supabase db push` then `supabase functions deploy wallet-transfer`.
+`supabase/seed.sql` grants demo opening balances via `wallet_grant`.
 
 ### Payment gateway (Razorpay, test mode — optional)
 

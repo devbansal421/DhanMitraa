@@ -1,0 +1,17 @@
+# One-click deploy on Render (free tier). Import the repo, pick "Blueprint",
+# point it at advisory-engine/render.yaml. Set LLM_API_KEY in the dashboard.
+services:
+  - type: web
+    name: khet-kundli-advisory
+    runtime: docker
+    rootDir: advisory-engine
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: CORS_ALLOW_ORIGINS
+        value: "*"

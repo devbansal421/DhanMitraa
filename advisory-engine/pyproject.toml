@@ -1,0 +1,15 @@
+[project]
+name = "khet-kundli-advisory-engine"
+version = "1.0.0"
+description = "Crop-fit and seasonal-profit advisory engine for DhanMitraa (port of the Khet Kundli C++ tool)."
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"

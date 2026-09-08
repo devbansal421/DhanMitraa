@@ -38,7 +38,6 @@ export const ta: Partial<Record<TranslationKey, string>> = {
 
   'wallet.title': 'கட்டணங்கள்',
   'wallet.availableBalance': 'கிடைக்கும் இருப்பு',
-  'wallet.simulationTag': 'சிமுலேஷன் — உண்மையான பணம் இல்லை',
   'wallet.sendMoney': 'பணம் அனுப்பு',
   'wallet.requestMoney': 'பணம் கேள்',
   'wallet.addMoney': 'பணம் சேர்',

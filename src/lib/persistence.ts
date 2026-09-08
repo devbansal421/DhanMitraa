@@ -1,16 +1,22 @@
 import type { Crop, OfflineTx } from '@/types';
-import type { WalletMeta, WalletTx } from '@/lib/payments';
+import type { OutboxTransfer, WalletTx } from '@/lib/payments';
 
 const STORAGE_KEYS = {
   crops: 'dhanmitraa:crops:v1',
   offlineTransactions: 'dhanmitraa:offline-transactions:v1',
   preferences: 'dhanmitraa:preferences:v1',
-  walletTransactions: 'dhanmitraa:wallet-transactions:v1',
-  walletMeta: 'dhanmitraa:wallet-meta:v1',
+  walletCache: 'dhanmitraa:wallet-cache:v2',
+  walletOutbox: 'dhanmitraa:wallet-outbox:v1',
 } as const;
 
 export interface UserPreferences {
   offlineMode: boolean;
+}
+
+/** Last-known server wallet snapshot, so an offline reload still shows history. */
+export interface WalletCache {
+  balance: number;
+  transactions: WalletTx[];
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -26,7 +32,7 @@ function write<T>(key: string, value: T) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // The prototype remains usable when storage is unavailable or full.
+    // The app stays usable when storage is unavailable or full.
   }
 }
 
@@ -57,23 +63,21 @@ export function savePreferences(preferences: UserPreferences) {
   write(STORAGE_KEYS.preferences, preferences);
 }
 
-export function loadWalletTransactions(fallback: WalletTx[]): WalletTx[] {
-  const value = read<unknown>(STORAGE_KEYS.walletTransactions, fallback);
-  return Array.isArray(value) ? (value as WalletTx[]) : fallback;
+export function loadWalletCache(): WalletCache | null {
+  const value = read<Partial<WalletCache> | null>(STORAGE_KEYS.walletCache, null);
+  if (!value || typeof value.balance !== 'number' || !Array.isArray(value.transactions)) return null;
+  return { balance: value.balance, transactions: value.transactions as WalletTx[] };
 }
 
-export function saveWalletTransactions(transactions: WalletTx[]) {
-  write(STORAGE_KEYS.walletTransactions, transactions);
+export function saveWalletCache(cache: WalletCache) {
+  write(STORAGE_KEYS.walletCache, cache);
 }
 
-export function loadWalletMeta(fallback: WalletMeta): WalletMeta {
-  const value = read<Partial<WalletMeta>>(STORAGE_KEYS.walletMeta, fallback);
-  return {
-    openingBalance: typeof value.openingBalance === 'number' ? value.openingBalance : fallback.openingBalance,
-    seeded: value.seeded === true,
-  };
+export function loadWalletOutbox(): OutboxTransfer[] {
+  const value = read<unknown>(STORAGE_KEYS.walletOutbox, []);
+  return Array.isArray(value) ? (value as OutboxTransfer[]) : [];
 }
 
-export function saveWalletMeta(meta: WalletMeta) {
-  write(STORAGE_KEYS.walletMeta, meta);
+export function saveWalletOutbox(outbox: OutboxTransfer[]) {
+  write(STORAGE_KEYS.walletOutbox, outbox);
 }

@@ -38,7 +38,6 @@ export const mr: Partial<Record<TranslationKey, string>> = {
 
   'wallet.title': 'पेमेंट',
   'wallet.availableBalance': 'उपलब्ध रक्कम',
-  'wallet.simulationTag': 'सिम्युलेशन — खरे पैसे नाहीत',
   'wallet.sendMoney': 'पैसे पाठवा',
   'wallet.requestMoney': 'पैसे मागा',
   'wallet.addMoney': 'पैसे जोडा',

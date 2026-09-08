@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, WifiOff } from 'lucide-react';
+import { ArrowRight, ShieldCheck, WifiOff } from 'lucide-react';
 import { Card, AnimatedNumber } from '@/components/ui';
 import { formatINR } from '@/lib/format';
 import { useWallet } from '@/wallet';
@@ -20,8 +20,8 @@ export function WalletSummaryCard({ className = '' }: { className?: string }) {
           </div>
           <p className="mt-1 text-xs text-paper-muted">{wallet.amountInWords(wallet.balance)}</p>
         </div>
-        <span className="inline-flex rounded border border-gold-300/30 bg-gold-50 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-gold-500">
-          {t('wallet.simulationTag')}
+        <span className="inline-flex items-center gap-1.5 rounded border border-sage-300/40 bg-sage-50 px-2 py-1 text-[10px] font-medium text-sage-600">
+          <ShieldCheck className="h-3 w-3" aria-hidden="true" /> {t('wallet.ledgerTag')}
         </span>
       </div>
 

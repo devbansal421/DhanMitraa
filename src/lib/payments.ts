@@ -1,26 +1,28 @@
 /**
  * Client-side payments domain for the DhanMitraa wallet.
  *
- * Everything here is a SIMULATION. No real money moves; there is no bank, UPI,
- * or payout provider connected. The module exists to model a trustworthy,
- * low-friction payment experience for farmers and rural businesses, and to give
- * the rest of the app a clean seam to swap for a server-backed wallet later
- * (see the roadmap in README).
+ * The wallet is a real, server-authoritative closed-loop ledger (see
+ * supabase/migrations/202609090001_wallet_closed_loop.sql). This module holds
+ * only pure, framework-free helpers: amount validation, Indian-numbering words,
+ * and the derived read models the UI renders. Every balance-changing operation
+ * happens in Postgres via the wallet-transfer Edge Function.
  */
 
 export type TxDirection = 'in' | 'out';
 
 export type TxKind =
-  | 'topup' // money added from a (simulated) bank / UPI source
+  | 'topup' // credit from a settlement / gateway top-up
   | 'send' // money sent to another participant
-  | 'receive' // money received from a buyer or participant
+  | 'receive' // money received from a participant
   | 'obligation' // payment against a crop obligation
-  | 'request'; // an outgoing "please pay me" request
+  | 'request' // a "please pay me" request (record only)
+  | 'settlement' // a harvest settlement payout
+  | 'refund' // a reversed / refunded transfer
+  | 'adjustment'; // a labelled opening balance / correction
 
 export type TxStatus =
-  | 'completed' // settled in the simulated ledger
-  | 'queued' // captured offline, waiting to sync
-  | 'pending'; // a request that has not been fulfilled yet
+  | 'completed' // settled in the ledger
+  | 'queued'; // captured offline, waiting to sync
 
 export interface WalletTx {
   id: string;
@@ -30,20 +32,26 @@ export interface WalletTx {
   counterparty: string;
   note?: string;
   obligationId?: string;
-  reference: string; // human-readable, e.g. DM-8F3K2P
+  reference: string; // e.g. DM-8F3K2P
   createdAt: string; // ISO timestamp
   status: TxStatus;
 }
 
-export interface WalletMeta {
-  openingBalance: number;
-  seeded: boolean;
+/** A transfer captured while offline, replayed (idempotently) on reconnect. */
+export interface OutboxTransfer {
+  idempotencyKey: string; // UUID — also the server-side idempotency key
+  kind: 'send' | 'obligation';
+  recipientOrgId?: string;
+  recipientUserId?: string;
+  counterpartyLabel: string;
+  amountRupees: number;
+  note?: string;
+  obligationId?: string;
+  createdAt: string;
 }
 
 export type DomainResult<T> = { ok: true; value: T } | { ok: false; message: string };
 
-/** A queued or completed transaction counts against/for the balance; a pending
- *  request does not move money until it is fulfilled. */
 export function affectsBalance(tx: WalletTx): boolean {
   return tx.status === 'completed' || tx.status === 'queued';
 }
@@ -96,6 +104,15 @@ export function newTxId(): string {
     : `tx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** RFC-4122 v4 — used as the server-side idempotency key for every transfer. */
+export function newUuid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 function formatPlainINR(amount: number): string {
   return '₹' + Math.round(amount).toLocaleString('en-IN');
 }
@@ -145,38 +162,4 @@ export function rupeesToWords(value: number): string {
 
 export function sentenceCase(text: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
-}
-
-/* --- Sample ledger so the wallet looks alive on first open ----------------- */
-
-export const SAMPLE_OPENING_BALANCE = 12_000;
-
-export function sampleTransactions(reference: Date = new Date()): WalletTx[] {
-  const daysAgo = (days: number) => {
-    const date = new Date(reference);
-    date.setDate(date.getDate() - days);
-    return date.toISOString();
-  };
-  return [
-    {
-      id: newTxId(), direction: 'in', kind: 'receive', amount: 9_000,
-      counterparty: 'Nova Agri Trading', note: 'Advance against wheat contract',
-      reference: makeReference(), createdAt: daysAgo(12), status: 'completed',
-    },
-    {
-      id: newTxId(), direction: 'out', kind: 'obligation', amount: 2_400,
-      counterparty: 'Greenfield Fertilizers', note: 'Fertilizer top-up',
-      reference: makeReference(), createdAt: daysAgo(9), status: 'completed',
-    },
-    {
-      id: newTxId(), direction: 'out', kind: 'send', amount: 1_800,
-      counterparty: 'Arun Logistics', note: 'Part payment for transport',
-      reference: makeReference(), createdAt: daysAgo(5), status: 'completed',
-    },
-    {
-      id: newTxId(), direction: 'in', kind: 'topup', amount: 2_000,
-      counterparty: 'Bank account ••4471', note: 'Added money',
-      reference: makeReference(), createdAt: daysAgo(3), status: 'completed',
-    },
-  ];
 }

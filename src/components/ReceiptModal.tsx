@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Volume2, WifiOff, X } from 'lucide-react';
+import { CheckCircle2, Volume2, WifiOff, X } from 'lucide-react';
 import type { WalletTx } from '@/lib/payments';
 import { rupeesToWords, sentenceCase } from '@/lib/payments';
 import { formatINR } from '@/lib/format';
@@ -6,12 +6,15 @@ import { useI18n } from '@/i18n';
 
 const BCP47: Record<string, string> = { en: 'en-IN', hi: 'hi-IN', mr: 'mr-IN', bn: 'bn-IN', ta: 'ta-IN' };
 
-const KIND_KEY: Record<WalletTx['kind'], 'receipt.moneyAdded' | 'receipt.moneySent' | 'receipt.moneyReceived' | 'receipt.obligationPayment' | 'receipt.paymentRequest'> = {
+const KIND_KEY: Record<WalletTx['kind'], 'receipt.moneyAdded' | 'receipt.moneySent' | 'receipt.moneyReceived' | 'receipt.obligationPayment' | 'receipt.paymentRequest' | 'receipt.settlementPayout'> = {
   topup: 'receipt.moneyAdded',
   send: 'receipt.moneySent',
   receive: 'receipt.moneyReceived',
   obligation: 'receipt.obligationPayment',
   request: 'receipt.paymentRequest',
+  settlement: 'receipt.settlementPayout',
+  refund: 'receipt.moneyReceived',
+  adjustment: 'receipt.moneyAdded',
 };
 
 export function ReceiptModal({ tx, onClose }: { tx: WalletTx; onClose: () => void }) {
@@ -19,9 +22,7 @@ export function ReceiptModal({ tx, onClose }: { tx: WalletTx; onClose: () => voi
 
   const badge = tx.status === 'queued'
     ? { icon: WifiOff, text: t('receipt.queuedOffline'), className: 'text-gold-500 border-gold-300/40 bg-gold-50' }
-    : tx.status === 'pending'
-      ? { icon: Clock, text: t('receipt.awaitingPayment'), className: 'text-paper-muted border-line bg-ink-elevated' }
-      : { icon: CheckCircle2, text: t('receipt.completed'), className: 'text-ok-500 border-ok-400/20 bg-ok-400/5' };
+    : { icon: CheckCircle2, text: t('receipt.completed'), className: 'text-ok-500 border-ok-400/20 bg-ok-400/5' };
   const BadgeIcon = badge.icon;
   const signedAmount = `${tx.direction === 'in' ? '+' : '−'}${formatINR(tx.amount)}`;
   const when = new Date(tx.createdAt).toLocaleString('en-IN', {
@@ -93,11 +94,7 @@ export function ReceiptModal({ tx, onClose }: { tx: WalletTx; onClose: () => voi
           </div>
         </dl>
 
-        <p className="mt-5 rounded-md border border-gold-300/30 bg-gold-50 px-3 py-2 text-center text-[11px] font-mono uppercase tracking-wider text-gold-500">
-          {t('receipt.simulationNote')}
-        </p>
-
-        <button type="button" onClick={onClose} className="btn-outline mt-5 w-full">{t('common.done')}</button>
+        <button type="button" onClick={onClose} className="btn-outline mt-6 w-full">{t('common.done')}</button>
       </div>
     </div>
   );

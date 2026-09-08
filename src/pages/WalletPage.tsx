@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowDownLeft, ArrowUpRight, Banknote, Download, HandCoins, PlusCircle, RefreshCw, Send, WifiOff,
+  ArrowDownLeft, ArrowUpRight, Banknote, Download, Info, RefreshCw, Send, ShieldCheck, WifiOff,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { useWallet } from '@/wallet';
@@ -15,7 +15,8 @@ import type { Obligation } from '@/types';
 import type { TranslationKey } from '@/i18n/en';
 
 const KIND_KEY: Record<WalletTx['kind'], TranslationKey> = {
-  topup: 'ledger.topup', send: 'ledger.send', receive: 'ledger.receive', obligation: 'ledger.obligation', request: 'ledger.request',
+  topup: 'ledger.topup', send: 'ledger.send', receive: 'ledger.receive', obligation: 'ledger.obligation',
+  request: 'ledger.request', settlement: 'ledger.settlement', refund: 'ledger.refund', adjustment: 'ledger.adjustment',
 };
 
 function txDate(iso: string) {
@@ -33,18 +34,10 @@ export function WalletPage() {
   const payableObligations = useMemo(() => {
     return crops.flatMap((crop) =>
       crop.obligations
-        .filter((obligation) => obligation.status === 'pending' && !wallet.paidObligationIds.has(obligation.id))
+        .filter((obligation) => obligation.status === 'pending' && obligation.partyOrgId && !wallet.paidObligationIds.has(obligation.id))
         .map((obligation) => ({ obligation, cropName: crop.name })),
     );
   }, [crops, wallet.paidObligationIds]);
-
-  const pendingRequests = wallet.transactions.filter((tx) => tx.kind === 'request' && tx.status === 'pending');
-
-  const quickActions: { mode: PaymentMode; label: string; icon: typeof Send }[] = [
-    { mode: 'send', label: t('wallet.sendMoney'), icon: Send },
-    { mode: 'request', label: t('wallet.requestMoney'), icon: HandCoins },
-    { mode: 'topup', label: t('wallet.addMoney'), icon: PlusCircle },
-  ];
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -62,8 +55,8 @@ export function WalletPage() {
             <p className="mt-2 text-sm text-paper-muted">{wallet.amountInWords(wallet.balance)}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span className="inline-flex rounded border border-gold-300/30 bg-gold-50 px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider text-gold-500">
-              {t('wallet.simulationTag')}
+            <span className="inline-flex items-center gap-1.5 rounded border border-sage-300/40 bg-sage-50 px-2.5 py-1 text-[11px] font-medium text-sage-600">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> {t('wallet.ledgerTag')}
             </span>
             {!wallet.online && (
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-terra-500">
@@ -76,22 +69,15 @@ export function WalletPage() {
           </div>
         </div>
 
-        <div className="relative mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {quickActions.map((action, index) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.mode}
-                type="button"
-                onClick={() => { setPayTarget(null); setSheet(action.mode); }}
-                className="btn-ghost flex-col gap-2 py-4 text-xs animate-fade-in-up"
-                style={{ animationDelay: `${index * 60}ms` }}
-              >
-                <Icon className="h-4 w-4 text-gold-200" aria-hidden="true" />
-                {action.label}
-              </button>
-            );
-          })}
+        <div className="relative mt-6 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => { setPayTarget(null); setSheet('send'); }}
+            className="btn-ghost flex-col gap-2 py-4 text-xs"
+          >
+            <Send className="h-4 w-4 text-gold-200" aria-hidden="true" />
+            {t('wallet.sendMoney')}
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -101,14 +87,24 @@ export function WalletPage() {
               setSheet('pay-obligation');
             }}
             disabled={payableObligations.length === 0}
-            className="btn-ghost flex-col gap-2 py-4 text-xs animate-fade-in-up"
-            style={{ animationDelay: '180ms' }}
+            className="btn-ghost flex-col gap-2 py-4 text-xs"
           >
             <Banknote className="h-4 w-4 text-gold-200" aria-hidden="true" />
             {t('wallet.payObligation')}
           </button>
         </div>
+
+        <p className="relative mt-4 flex items-start gap-2 text-[11px] leading-5 text-paper-muted">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t('wallet.ledgerNote')}
+        </p>
       </Card>
+
+      {wallet.error && !wallet.available && (
+        <Card className="p-4 mb-4 border-terra-400/25 bg-terra-400/5">
+          <p className="text-sm text-paper">{t('wallet.notProvisioned')}</p>
+        </Card>
+      )}
 
       {/* Money in / out */}
       <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-4 mb-4">
@@ -164,29 +160,6 @@ export function WalletPage() {
         )}
       </Card>
 
-      {/* Pending requests */}
-      {pendingRequests.length > 0 && (
-        <Card className="p-5 sm:p-7 mb-4 animate-fade-in-up">
-          <div className="mb-4 eyebrow">{t('wallet.requestsPending')}</div>
-          <div className="space-y-1">
-            {pendingRequests.map((tx) => (
-              <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-3 last:border-0">
-                <div>
-                  <div className="text-sm text-paper">{tx.counterparty}</div>
-                  <div className="text-[11px] text-paper-muted">{tx.note} · {tx.reference}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-mono text-paper">{formatINR(tx.amount)}</span>
-                  <button type="button" onClick={() => wallet.markRequestReceived(tx.id)} className="btn-outline px-3 py-1.5 text-xs">
-                    {t('wallet.markReceived')}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {/* Ledger */}
       <Card className="p-5 sm:p-7 animate-fade-in-up">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -197,8 +170,8 @@ export function WalletPage() {
                 <Download className="h-3 w-3" aria-hidden="true" /> {t('wallet.exportStatement')}
               </button>
             )}
-            <button type="button" onClick={wallet.resetWallet} className="inline-flex items-center gap-1.5 text-[11px] text-paper-muted hover:text-paper">
-              <RefreshCw className="h-3 w-3" aria-hidden="true" /> {t('wallet.resetSample')}
+            <button type="button" onClick={wallet.refresh} className="inline-flex items-center gap-1.5 text-[11px] text-paper-muted hover:text-paper">
+              <RefreshCw className="h-3 w-3" aria-hidden="true" /> {t('wallet.refresh')}
             </button>
           </div>
         </div>
@@ -229,9 +202,7 @@ export function WalletPage() {
                     <span className={`text-sm font-mono ${incoming ? 'text-ok-500' : 'text-paper'}`}>
                       {incoming ? '+' : '−'}{formatINR(tx.amount)}
                     </span>
-                    {tx.status !== 'completed' && (
-                      <StatusPill status="pending" label={tx.status === 'queued' ? t('ledger.queued') : t('ledger.pending')} />
-                    )}
+                    {tx.status === 'queued' && <StatusPill status="pending" label={t('ledger.queued')} />}
                   </div>
                 </button>
               );

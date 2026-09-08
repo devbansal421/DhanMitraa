@@ -24,9 +24,10 @@ export type Database = {
       settlement_allocations: Table<Record<string, unknown>>;
       obligation_acceptances: Table<Record<string, unknown>>;
       audit_events: Table<Record<string, unknown>>;
-      // Phase 2 wallet (migration 202609080008). Client reads only.
-      wallet_accounts: Table<{ user_id: string; balance_paise: number; currency: string; created_at: string; updated_at: string }>;
-      wallet_ledger: Table<{ id: string; account_user_id: string; direction: Database['public']['Enums']['wallet_entry_direction']; amount_paise: number; kind: Database['public']['Enums']['wallet_entry_kind']; counterparty_label: string; note: string | null; reference: string; related_order_id: string | null; idempotency_key: string; created_at: string }>;
+      // Closed-loop wallet (migration 202609090001). Client reads only; writes go
+      // through the wallet-transfer Edge Function.
+      wallet_accounts: Table<{ id: string; holder_kind: 'user' | 'org'; user_id: string | null; org_id: string | null; label: string; balance_paise: number; currency: string; created_at: string; updated_at: string }>;
+      wallet_ledger: Table<{ id: string; transfer_id: string; account_id: string; direction: Database['public']['Enums']['wallet_entry_direction']; amount_paise: number; kind: Database['public']['Enums']['wallet_entry_kind']; counterparty_account_id: string | null; counterparty_label: string; note: string | null; reference: string; obligation_id: string | null; idempotency_key: string; created_at: string }>;
       payment_orders: Table<{ id: string; user_id: string; provider: string; provider_order_id: string | null; provider_payment_id: string | null; amount_paise: number; status: Database['public']['Enums']['payment_order_status']; created_at: string; updated_at: string }>;
     };
     Views: Record<never, never>;

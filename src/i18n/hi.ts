@@ -71,7 +71,6 @@ export const hi: Partial<Record<TranslationKey, string>> = {
   'wallet.title': 'भुगतान',
   'wallet.subtitle': 'फ़सल के भुगतान भेजें, पाएँ और निपटाएँ। धीमे कनेक्शन और ऑफ़लाइन उपयोग के लिए बनाया गया।',
   'wallet.availableBalance': 'उपलब्ध राशि',
-  'wallet.simulationTag': 'सिमुलेशन — असली पैसा नहीं',
   'wallet.offline': 'ऑफ़लाइन',
   'wallet.queued': '{count} भुगतान कतार में',
   'wallet.sendMoney': 'पैसे भेजें',
@@ -92,7 +91,7 @@ export const hi: Partial<Record<TranslationKey, string>> = {
   'wallet.pay': 'चुकाएँ',
   'wallet.exportStatement': 'विवरण डाउनलोड करें',
 
-  'payment.eyebrow': 'भुगतान · सिमुलेशन',
+  'payment.eyebrow': 'भुगतान',
   'payment.send.title': 'पैसे भेजें',
   'payment.request.title': 'पैसे माँगें',
   'payment.topup.title': 'पैसे जोड़ें',
@@ -145,7 +144,6 @@ export const hi: Partial<Record<TranslationKey, string>> = {
   'receipt.note': 'टिप्पणी',
   'receipt.reference': 'संदर्भ',
   'receipt.dateTime': 'तारीख़ और समय',
-  'receipt.simulationNote': 'सिमुलेशन — असली पैसा नहीं गया',
   'receipt.to': 'किसे',
   'receipt.from': 'किससे',
 
