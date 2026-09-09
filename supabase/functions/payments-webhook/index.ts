@@ -61,13 +61,22 @@ Deno.serve(async (request) => {
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, serviceRoleKey, { auth: { persistSession: false } });
 
+  // Resolve (provisioning if needed) the recipient's closed-loop wallet account.
+  // The ledger is keyed by account_id, not user_id (migration 202609090001).
+  const { data: accountId, error: accountError } = await admin.rpc('wallet_account_for_user', { p_user: userId });
+  if (accountError || !accountId) {
+    console.error('wallet account lookup failed', accountError?.message);
+    return new Response('Wallet account unavailable', { status: 500 });
+  }
+
   // Idempotent: derive a stable UUID from the payment id so a retried webhook
   // cannot double-credit the wallet.
   const digest = await hmacHex('dhanmitraa-ledger', paymentId); // 64 hex chars
   const idempotencyKey = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-${digest.slice(12, 16)}-${digest.slice(16, 20)}-${digest.slice(20, 32)}`;
 
   const { error } = await admin.from('wallet_ledger').insert({
-    account_user_id: userId,
+    transfer_id: idempotencyKey,
+    account_id: accountId,
     direction: 'credit',
     amount_paise: amountPaise,
     kind: 'topup',
